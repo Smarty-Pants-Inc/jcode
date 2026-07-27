@@ -2695,13 +2695,14 @@ impl OpenRouterProvider {
     }
 
     async fn model_pricing(&self, model_id: &str) -> Option<ModelPricing> {
-        let cache = self.models_cache.read().await;
-        if cache.fetched
-            && let Some(model) = cache.models.iter().find(|m| m.id == model_id)
         {
-            return Some(model.pricing.clone());
+            let cache = self.models_cache.read().await;
+            if cache.fetched
+                && let Some(model) = cache.models.iter().find(|m| m.id == model_id)
+            {
+                return Some(model.pricing.clone());
+            }
         }
-
         if let Some(cache_entry) = self.load_usable_model_disk_cache_entry() {
             let models = cache_entry.models;
             let pricing = models
@@ -2716,7 +2717,6 @@ impl OpenRouterProvider {
                 return pricing;
             }
         }
-
         if let Ok(models) = self.fetch_models().await
             && let Some(model) = models.iter().find(|m| m.id == model_id)
         {

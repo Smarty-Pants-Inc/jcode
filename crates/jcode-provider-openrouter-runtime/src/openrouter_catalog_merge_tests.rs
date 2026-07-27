@@ -1,7 +1,9 @@
 //! Regression tests for static-model / live-catalog merge behavior
 //! across built-in and user-declared OpenAI-compatible provider profiles.
 
-use crate::tests::{ENV_LOCK, EnvVarGuard};
+use crate::tests::{
+    ENV_LOCK, EnvVarGuard, make_custom_compatible_provider, spawn_single_response_models_server,
+};
 
 /// Minimal one-shot `/models` endpoint: serves `body` to the first request.
 fn spawn_models_server(body: &'static str) -> String {
@@ -28,6 +30,28 @@ fn spawn_models_server(body: &'static str) -> String {
 }
 
 use crate::*;
+
+#[tokio::test]
+async fn model_cache_capability_catalog_fetch_does_not_deadlock() {
+    let (api_base, request_rx) = spawn_single_response_models_server(
+        r#"{"data":[{"id":"deadlock-model","pricing":{"cached_input":"0.001"}}]}"#,
+    );
+    let mut provider = make_custom_compatible_provider();
+    provider.api_base = api_base;
+
+    let supports_cache = tokio::time::timeout(
+        std::time::Duration::from_secs(2),
+        provider.model_supports_cache("deadlock-model"),
+    )
+    .await
+    .expect("cache capability lookup must not deadlock while fetching the catalog");
+
+    assert!(supports_cache);
+    let request = request_rx
+        .recv_timeout(std::time::Duration::from_secs(2))
+        .expect("models request");
+    assert!(request.starts_with("GET /v1/models "));
+}
 
 #[test]
 fn named_profile_static_models_survive_live_catalog_refresh() {
