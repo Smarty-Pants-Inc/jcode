@@ -816,23 +816,11 @@ pub(super) async fn handle_client(
                                 .provider
                                 .model_picker_providers
                                 .clone();
-                            let compact_event = picker_scoped_available_models_event(
+                            let compact_event = compact_available_models_event(
                                 &event,
                                 picker_allowlist.as_deref(),
-                            )
-                            .map(|event| {
-                                let encoded = crate::protocol::encode_event(&event);
-                                (event, encoded)
-                            })
-                            .filter(|(_, encoded)| {
-                                encoded.len() <= MAX_LIVE_AVAILABLE_MODELS_UPDATE_BYTES
-                            })
-                            .or_else(|| {
-                                names_only_available_models_event(&event).map(|event| {
-                                    let encoded = crate::protocol::encode_event(&event);
-                                    (event, encoded)
-                                })
-                            });
+                                MAX_LIVE_AVAILABLE_MODELS_UPDATE_BYTES,
+                            );
                             match compact_event {
                                 Some((slim_event, slim_encoded))
                                     if slim_encoded.len() <= MAX_LIVE_AVAILABLE_MODELS_UPDATE_BYTES => {
@@ -3091,6 +3079,31 @@ fn names_only_available_models_event(event: &ServerEvent) -> Option<ServerEvent>
         available_models: available_models.clone(),
         available_model_routes: Vec::new(),
     })
+}
+
+/// Choose the compacted `AvailableModelsUpdated` payload to send when the full
+/// frame exceeds `max_bytes`.
+///
+/// Prefers a provider-scoped snapshot so picker selections stay exactly
+/// routable, and only falls back to names-only (which drops provider identity)
+/// when no allowlist is configured or the scoped payload is still too large.
+fn compact_available_models_event(
+    event: &ServerEvent,
+    allowlist: Option<&[String]>,
+    max_bytes: usize,
+) -> Option<(ServerEvent, String)> {
+    picker_scoped_available_models_event(event, allowlist)
+        .map(|event| {
+            let encoded = crate::protocol::encode_event(&event);
+            (event, encoded)
+        })
+        .filter(|(_, encoded)| encoded.len() <= max_bytes)
+        .or_else(|| {
+            names_only_available_models_event(event).map(|event| {
+                let encoded = crate::protocol::encode_event(&event);
+                (event, encoded)
+            })
+        })
 }
 
 /// Keep only routes selected by `provider.model_picker_providers` so an
