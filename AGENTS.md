@@ -1,3 +1,79 @@
+# Smarty Pants fork
+
+You are in [`Smarty-Pants-Inc/jcode`](https://github.com/Smarty-Pants-Inc/jcode),
+a fork of [`1jehuang/jcode`](https://github.com/1jehuang/jcode). Upstream's
+guidelines follow below and still apply. This section takes precedence where
+they conflict.
+
+## Patch stack
+
+`master` is byte-identical to upstream. Our changes are a linear stack above it:
+
+1. `patch/openrouter-catalog-deadlock` — catalog read/write lock inversion
+2. `patch/picker-provider-routes` — oversized model-update frames dropped
+   provider identity, so picker selections misrouted to a built-in provider
+3. `patch/smarty-fork-docs` — fork-local docs (this section)
+
+The first two are offered upstream as stacked draft PRs. The tip is what we
+build and run.
+
+## Rules
+
+- **Never commit to `master`.** It has to fast-forward from upstream. A commit
+  there breaks `pnpm jcode:refresh`, and because Jcode's auto-updater runs
+  `git pull` in its own source clone, it can also break updates with
+  `Cannot fast-forward to multiple branches`.
+- **Keep exactly two remotes**, `origin` (this fork) and `upstream`. A third
+  makes that same `git pull` ambiguous.
+- **Add a new fix as a new patch branch** stacked on the current tip, then add it
+  to `patch_branches` in smarty-dev's `bin/jcode-fork`. Do not fold unrelated
+  changes into an existing patch.
+- **Keep fork-local changes above upstream-bound ones** so the patches we intend
+  to upstream stay clean and reviewable.
+- **Prove behavior fixes by mutation.** Revert the fix and confirm the test
+  fails. A test that passes with the bug present is not a regression test; this
+  repo has already shipped one such test, caught only by mutation testing.
+- **Never patch a live binary or `~/.jcode/builds`.** Fix source here, then
+  rebuild.
+
+## Commands
+
+Patches are managed from the [`smarty-dev`](https://github.com/Smarty-Pants-Inc/smarty-dev)
+monorepo, which pins this repo at `repos/jcode`:
+
+```sh
+pnpm jcode:stack      # show the stack
+pnpm jcode:refresh    # fast-forward master, rebase the stack onto it
+pnpm jcode:build      # run the patch-stack regression tests
+pnpm jcode:publish    # push master and the patch branches
+pnpm jcode:install    # build and install locally
+pnpm jcode:check      # verify build channels and launchers agree
+```
+
+Upstream's own guardrails still apply before pushing: run
+`scripts/check_guardrails.sh`.
+
+## Runtime notes
+
+- `jcode` runs this fork; `jcode-default` runs stock upstream. Use
+  `jcode-default` to tell whether a bug is ours or upstream's before patching.
+- `~/.local/bin/jcode` on our machines is a wrapper script, not the plain
+  symlink described below, and it passes `--no-update` so an upstream release
+  cannot silently replace the patched build. `pnpm jcode:install` re-creates it.
+- `~/.jcode/source/jcode` is Jcode's own self-dev clone and is runtime state, not
+  a source of truth. Leave it on a clean `master`; keep patches here.
+
+## More docs
+
+- [Fork runbook](https://github.com/Smarty-Pants-Inc/smarty-dev/blob/main/integrations/jcode-fork/README.md)
+  covers the patch stack, refresh, build and install, launchers, auto-update
+  recovery, and rollback.
+- [Jcode config runbook](https://github.com/Smarty-Pants-Inc/smarty-dev/blob/main/integrations/jcode/README.md)
+  covers provider and model routes, MCP servers, and the swarm routing catalog.
+- [`README.md`](README.md) carries the same fork summary for humans.
+
+---
+
 # Repository Guidelines
 
 ## Development Workflow

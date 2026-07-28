@@ -1,3 +1,66 @@
+> ## Smarty Pants fork
+>
+> This is [`Smarty-Pants-Inc/jcode`](https://github.com/Smarty-Pants-Inc/jcode),
+> a fork of [`1jehuang/jcode`](https://github.com/1jehuang/jcode). Upstream's
+> README follows unchanged below.
+>
+> **`master` is byte-identical to upstream.** Our changes live in a linear patch
+> stack above it, so we can take upstream releases with a rebase instead of a
+> merge:
+>
+> | Branch | What it fixes |
+> | --- | --- |
+> | `patch/openrouter-catalog-deadlock` | `model_pricing()` held a catalog read lock and then called `fetch_models()`, which waits for a write lock, so cold-catalog paths deadlocked until killed. Triggers only with `model_catalog = true`. ([PR #1](https://github.com/Smarty-Pants-Inc/jcode/pull/1)) |
+> | `patch/picker-provider-routes` | An `AvailableModelsUpdated` frame over 64 KiB collapsed to a names-only snapshot that dropped provider identity, so picking a model served by several providers (for example `gpt-5.6-sol`) silently resolved to a built-in provider instead of the configured profile. ([PR #2](https://github.com/Smarty-Pants-Inc/jcode/pull/2)) |
+> | `patch/smarty-fork-docs` | This section and the `AGENTS.md` note. Fork-local; never intended for upstream. |
+>
+> The first two are offered upstream as stacked draft PRs. The stack tip is what
+> we build and run.
+>
+> ### Working on this fork
+>
+> Patches are managed from the [`smarty-dev`](https://github.com/Smarty-Pants-Inc/smarty-dev)
+> monorepo, which pins this repo at `repos/jcode`:
+>
+> ```sh
+> pnpm jcode:stack      # show the stack
+> pnpm jcode:refresh    # fast-forward master, rebase the stack onto it
+> pnpm jcode:build      # run the patch-stack regression tests
+> pnpm jcode:publish    # push master and the patch branches
+> pnpm jcode:install    # build and install locally
+> pnpm jcode:check      # verify build channels and launchers agree
+> ```
+>
+> Rules that keep this working:
+>
+> - **Never commit to `master`.** It has to fast-forward from upstream. A commit
+>   there breaks `jcode:refresh`, and because Jcode's auto-updater runs `git pull`
+>   in its own source clone, it can also break updates with
+>   `Cannot fast-forward to multiple branches`.
+> - **Add a new fix as a new patch branch** stacked on the current tip, then add
+>   it to `patch_branches` in smarty-dev's `bin/jcode-fork`.
+> - **Keep fork-local changes above upstream-bound ones** so the patches we intend
+>   to upstream stay clean and reviewable.
+> - **Prove behavior fixes by mutation.** Revert the fix and confirm the test
+>   fails. A test that passes with the bug present is not a regression test.
+>
+> ### Which binary am I running?
+>
+> On our machines `jcode` runs this fork and `jcode-default` runs stock upstream,
+> mirroring the `claude-default` convention. Use `jcode-default` to tell whether a
+> bug is ours or upstream's before patching.
+>
+> ### More docs
+>
+> - [Fork runbook](https://github.com/Smarty-Pants-Inc/smarty-dev/blob/main/integrations/jcode-fork/README.md)
+>   covers the patch stack, refresh, build and install, launchers, auto-update
+>   recovery, and rollback.
+> - [Jcode config runbook](https://github.com/Smarty-Pants-Inc/smarty-dev/blob/main/integrations/jcode/README.md)
+>   covers provider and model routes, MCP servers, and the swarm routing catalog.
+> - [`AGENTS.md`](AGENTS.md) carries the same rules for agents working in this repo.
+
+---
+
 <div align="center">
 
 # jcode
