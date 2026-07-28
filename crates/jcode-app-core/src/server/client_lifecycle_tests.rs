@@ -6,6 +6,61 @@ use futures::stream;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
+#[test]
+fn oversized_picker_update_preserves_allowlisted_provider_routes() {
+    let event = ServerEvent::AvailableModelsUpdated {
+        provider_name: Some("OpenAI".to_string()),
+        provider_model: Some("gpt-5.6-sol".to_string()),
+        available_models: vec!["gpt-5.6-sol".to_string(), "other-model".to_string()],
+        available_model_routes: vec![
+            jcode_provider_core::ModelRoute {
+                model: "gpt-5.6-sol".to_string(),
+                provider: "OpenAI".to_string(),
+                api_method: "openai-oauth".to_string(),
+                available: true,
+                detail: String::new(),
+                cheapness: None,
+            },
+            jcode_provider_core::ModelRoute {
+                model: "gpt-5.6-sol".to_string(),
+                provider: "cliproxyapi".to_string(),
+                api_method: "openai-compatible:cliproxyapi".to_string(),
+                available: true,
+                detail: String::new(),
+                cheapness: None,
+            },
+            jcode_provider_core::ModelRoute {
+                model: "other-model".to_string(),
+                provider: "OpenRouter".to_string(),
+                api_method: "openrouter".to_string(),
+                available: true,
+                detail: String::new(),
+                cheapness: None,
+            },
+        ],
+    };
+
+    let scoped = picker_scoped_available_models_event(&event, Some(&["cliproxyapi".to_string()]))
+        .expect("allowlisted route should survive compaction");
+    let ServerEvent::AvailableModelsUpdated {
+        available_models,
+        available_model_routes,
+        ..
+    } = scoped
+    else {
+        panic!("expected model update");
+    };
+
+    assert_eq!(available_models, vec!["gpt-5.6-sol"]);
+    assert_eq!(available_model_routes.len(), 1);
+    assert_eq!(available_model_routes[0].provider, "cliproxyapi");
+    assert_eq!(
+        jcode_provider_core::RouteSelection::from_model_route(&available_model_routes[0])
+            .routed_model_spec(),
+        "cliproxyapi:gpt-5.6-sol"
+    );
+}
+
 struct IsolatedRuntimeDir {
     _prev_runtime: Option<std::ffi::OsString>,
     _temp: tempfile::TempDir,
