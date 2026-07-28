@@ -38,36 +38,52 @@ build and run.
 
 ## Commands
 
-Patches are managed from the [`smarty-dev`](https://github.com/Smarty-Pants-Inc/smarty-dev)
+Building and activation are **Jcode's own self-dev machinery**, not a wrapper:
+
+| Where | Command |
+| --- | --- |
+| In a self-dev session | `selfdev build`, `selfdev build-reload`, `selfdev test`, `selfdev reload` |
+| From a shell | `jcode self-dev` (add `--build`) |
+
+Outside a self-dev session the tool only exposes `enter`, `setup`, `reload`,
+`status`, and `find-config`. That is deliberate: an ordinary session should not
+rebuild the harness by accident.
+
+Stack and pin management lives in the [`smarty-dev`](https://github.com/Smarty-Pants-Inc/smarty-dev)
 monorepo, which pins this repo at `repos/jcode`:
 
 ```sh
 pnpm jcode:stack      # show the stack
 pnpm jcode:refresh    # fast-forward master, rebase the stack onto it
-pnpm jcode:build      # run the patch-stack regression tests
 pnpm jcode:publish    # push master and the patch branches
-pnpm jcode:install    # build and install locally
-pnpm jcode:check      # verify build channels and launchers agree
+pnpm jcode:pin        # stage the parent gitlink at the current commit
+pnpm jcode:check      # self-dev target, stack, pin, escape hatch
 ```
 
 Upstream's own guardrails still apply before pushing: run
 `scripts/check_guardrails.sh`.
 
+If a self-dev build fails inside the AWS dependency tree, `dev_cargo.sh` picked a
+stale default nightly. Set `JCODE_DEV_TOOLCHAIN` to a nightly >= 1.94.1.
+
 ## Runtime notes
 
 - `jcode` runs this fork; `jcode-default` runs stock upstream. Use
   `jcode-default` to tell whether a bug is ours or upstream's before patching.
-- `~/.local/bin/jcode` on our machines is a wrapper script, not the plain
-  symlink described below, and it passes `--no-update` so an upstream release
-  cannot silently replace the patched build. `pnpm jcode:install` re-creates it.
-- `~/.jcode/source/jcode` is Jcode's own self-dev clone and is runtime state, not
-  a source of truth. Leave it on a clean `master`; keep patches here.
+- `~/.local/bin/jcode` is a plain symlink into `~/.jcode/builds`, managed by
+  Jcode itself. Do not wrap it; Jcode rewrites it on every publish.
+- `~/.jcode/source/jcode` is Jcode's own clone and is runtime state, not a source
+  of truth. Leave it on a clean `master`; keep patches here.
 - Self-dev builds from whatever `JCODE_REPO_DIR` points at and publishes into
   `~/.jcode/builds`. It is exported to this repo, so `selfdev build` and
   `selfdev reload` act on the fork. If it is unset, self-dev silently targets the
   upstream clone and can publish unpatched code over the fork build. Run
   `pnpm jcode:check` after any self-dev reload, and commit source changes to a
   patch branch — a self-dev build alone leaves git state untouched.
+- These are source builds, so the updater compares this checkout against its
+  tracking branch rather than downloading releases. The stack tip tracks
+  `origin/<stack-tip>`, so "update available" means the fork moved. Take upstream
+  changes with `pnpm jcode:refresh`, not `git pull`.
 
 ## More docs
 

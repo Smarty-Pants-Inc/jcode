@@ -25,11 +25,15 @@
 > ```sh
 > pnpm jcode:stack      # show the stack
 > pnpm jcode:refresh    # fast-forward master, rebase the stack onto it
-> pnpm jcode:build      # run the patch-stack regression tests
 > pnpm jcode:publish    # push master and the patch branches
-> pnpm jcode:install    # build and install locally
-> pnpm jcode:check      # verify build channels and launchers agree
+> pnpm jcode:pin        # stage the parent gitlink at the current commit
+> pnpm jcode:check      # self-dev target, stack, pin, escape hatch
 > ```
+>
+> Building and activation use Jcode's own self-dev machinery: `selfdev build` or
+> `selfdev build-reload` inside a self-dev session, or `jcode self-dev --build`
+> from a shell. `JCODE_REPO_DIR` points self-dev at this checkout, so it builds
+> the fork rather than the upstream clone in `~/.jcode/source/jcode`.
 >
 > Rules that keep this working:
 >
