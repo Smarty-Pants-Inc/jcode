@@ -62,6 +62,12 @@ Upstream's own guardrails still apply before pushing: run
   cannot silently replace the patched build. `pnpm jcode:install` re-creates it.
 - `~/.jcode/source/jcode` is Jcode's own self-dev clone and is runtime state, not
   a source of truth. Leave it on a clean `master`; keep patches here.
+- Self-dev builds from whatever `JCODE_REPO_DIR` points at and publishes into
+  `~/.jcode/builds`. It is exported to this repo, so `selfdev build` and
+  `selfdev reload` act on the fork. If it is unset, self-dev silently targets the
+  upstream clone and can publish unpatched code over the fork build. Run
+  `pnpm jcode:check` after any self-dev reload, and commit source changes to a
+  patch branch — a self-dev build alone leaves git state untouched.
 
 ## More docs
 
