@@ -12,10 +12,12 @@ they conflict.
 1. `patch/openrouter-catalog-deadlock` — catalog read/write lock inversion
 2. `patch/picker-provider-routes` — oversized model-update frames dropped
    provider identity, so picker selections misrouted to a built-in provider
-3. `patch/smarty-fork-docs` — fork-local docs (this section)
+3. `patch/server-reload-subscribe` — `jcode server reload` sent a stateful
+   request before subscribing, so the command always failed
+4. `patch/smarty-fork-docs` — fork-local docs (this section) and the
+   `upstream-merge` skill
 
-The first two are offered upstream as stacked draft PRs. The tip is what we
-build and run.
+The first three are upstream-bound. The tip is what we build and run.
 
 ## Rules
 
@@ -33,10 +35,16 @@ build and run.
 - **Prove behavior fixes by mutation.** Revert the fix and confirm the test
   fails. A test that passes with the bug present is not a regression test; this
   repo has already shipped one such test, caught only by mutation testing.
+- **Establish the upstream baseline before blaming the stack.** Some upstream
+  tests fail on a clean `master`. Check there before assuming a patch broke them.
 - **Never patch a live binary or `~/.jcode/builds`.** Fix source here, then
   rebuild.
 
 ## Commands
+
+**Run the `upstream-merge` skill** for the full refresh → patch → build →
+activate → publish → pin cycle. It carries the procedure and the traps; this
+section is only the map.
 
 Building and activation are **Jcode's own self-dev machinery**, not a wrapper:
 
@@ -47,7 +55,8 @@ Building and activation are **Jcode's own self-dev machinery**, not a wrapper:
 
 Outside a self-dev session the tool only exposes `enter`, `setup`, `reload`,
 `status`, and `find-config`. That is deliberate: an ordinary session should not
-rebuild the harness by accident.
+rebuild the harness by accident. It also means a plain session cannot publish a
+fresh build, only reload onto an already-installed one.
 
 Stack and pin management lives in the [`smarty-dev`](https://github.com/Smarty-Pants-Inc/smarty-dev)
 monorepo, which pins this repo at `repos/jcode`:
@@ -84,9 +93,17 @@ stale default nightly. Set `JCODE_DEV_TOOLCHAIN` to a nightly >= 1.94.1.
   tracking branch rather than downloading releases. The stack tip tracks
   `origin/<stack-tip>`, so "update available" means the fork moved. Take upstream
   changes with `pnpm jcode:refresh`, not `git pull`.
+- **Reload detection compares binary mtimes, not versions**, resolving candidates
+  through the `current`/`shared-server` channel symlinks. If those already point
+  at the new build, the daemon compares it against itself and reports "already
+  newest" while still executing the old binary. Do not hand-repoint the channels;
+  the installer sets them. Confirm what is actually running with
+  `lsof -p <daemon-pid>` and force it with `jcode server reload --force`.
 
 ## More docs
 
+- The `upstream-merge` skill (`.jcode/skills/upstream-merge/`) — the working
+  procedure for refresh, patching, building, activating, publishing, pinning
 - [Fork runbook](https://github.com/Smarty-Pants-Inc/smarty-dev/blob/main/integrations/jcode-fork/README.md)
   covers the patch stack, refresh, build and install, launchers, auto-update
   recovery, and rollback.

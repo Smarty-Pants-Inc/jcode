@@ -12,12 +12,16 @@
 > | --- | --- |
 > | `patch/openrouter-catalog-deadlock` | `model_pricing()` held a catalog read lock and then called `fetch_models()`, which waits for a write lock, so cold-catalog paths deadlocked until killed. Triggers only with `model_catalog = true`. ([PR #1](https://github.com/Smarty-Pants-Inc/jcode/pull/1)) |
 > | `patch/picker-provider-routes` | An `AvailableModelsUpdated` frame over 64 KiB collapsed to a names-only snapshot that dropped provider identity, so picking a model served by several providers (for example `gpt-5.6-sol`) silently resolved to a built-in provider instead of the configured profile. ([PR #2](https://github.com/Smarty-Pants-Inc/jcode/pull/2)) |
-> | `patch/smarty-fork-docs` | This section and the `AGENTS.md` note. Fork-local; never intended for upstream. |
+> | `patch/server-reload-subscribe` | `jcode server reload` connected and sent the stateful `Reload` request without subscribing first, so the command always failed with `Client must Subscribe with a working_dir before sending stateful requests`. |
+> | `patch/smarty-fork-docs` | This section, the `AGENTS.md` note, and the `upstream-merge` skill. Fork-local; never intended for upstream. |
 >
-> The first two are offered upstream as stacked draft PRs. The stack tip is what
-> we build and run.
+> The first three are upstream-bound. The stack tip is what we build and run.
 >
 > ### Working on this fork
+>
+> Agents should run the **`upstream-merge` skill** (`.jcode/skills/upstream-merge/`),
+> which carries the full refresh → patch → build → activate → publish → pin
+> procedure along with the traps that are easy to rediscover the hard way.
 >
 > Patches are managed from the [`smarty-dev`](https://github.com/Smarty-Pants-Inc/smarty-dev)
 > monorepo, which pins this repo at `repos/jcode`:
@@ -56,6 +60,9 @@
 >
 > ### More docs
 >
+> - The [`upstream-merge` skill](.jcode/skills/upstream-merge/SKILL.md) is the
+>   working procedure for taking upstream changes, adding a patch, and
+>   rebuilding.
 > - [Fork runbook](https://github.com/Smarty-Pants-Inc/smarty-dev/blob/main/integrations/jcode-fork/README.md)
 >   covers the patch stack, refresh, build and install, launchers, auto-update
 >   recovery, and rollback.
