@@ -2100,6 +2100,12 @@ pub async fn run_server_reload_command(force: bool, emit_json: bool) -> Result<(
 
     let mut client = crate::server::Client::connect().await?;
 
+    // `Reload` is a stateful request, and the server rejects those from a
+    // client that has not subscribed with a working_dir. Subscribe first so
+    // `jcode server reload` does not fail with "Client must Subscribe with a
+    // working_dir before sending stateful requests".
+    client.subscribe().await?;
+
     // Before asking the (possibly older) daemon to reload, repair a stale
     // `shared-server` channel from the client side. The running server resolves
     // its reload target from that channel; if it still points at the server's
