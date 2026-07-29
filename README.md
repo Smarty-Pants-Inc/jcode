@@ -10,8 +10,8 @@
 >
 > | Branch | What it fixes |
 > | --- | --- |
-> | `patch/openrouter-catalog-deadlock` | `model_pricing()` held a catalog read lock and then called `fetch_models()`, which waits for a write lock, so cold-catalog paths deadlocked until killed. Triggers only with `model_catalog = true`. ([PR #1](https://github.com/Smarty-Pants-Inc/jcode/pull/1)) |
-> | `patch/picker-provider-routes` | An `AvailableModelsUpdated` frame over 64 KiB collapsed to a names-only snapshot that dropped provider identity, so picking a model served by several providers (for example `gpt-5.6-sol`) silently resolved to a built-in provider instead of the configured profile. ([PR #2](https://github.com/Smarty-Pants-Inc/jcode/pull/2)) |
+> | `patch/openrouter-catalog-deadlock` | `model_pricing()` held a catalog read lock and then called `fetch_models()`, which waits for a write lock, so cold-catalog paths deadlocked until killed. Triggers only with `model_catalog = true`. ([upstream issue #649](https://github.com/1jehuang/jcode/issues/649), [fork PR #1](https://github.com/Smarty-Pants-Inc/jcode/pull/1)) |
+> | `patch/picker-provider-routes` | An `AvailableModelsUpdated` frame over 64 KiB collapsed to a names-only snapshot that dropped provider identity, so picking a model served by several providers (for example `gpt-5.6-sol`) silently resolved to a built-in provider instead of the configured profile. ([upstream issue #650](https://github.com/1jehuang/jcode/issues/650), [fork PR #2](https://github.com/Smarty-Pants-Inc/jcode/pull/2)) |
 > | `patch/server-reload-subscribe` | `jcode server reload` connected and sent the stateful `Reload` request without subscribing first, so the command always failed with `Client must Subscribe with a working_dir before sending stateful requests`. ([upstream issue #648](https://github.com/1jehuang/jcode/issues/648)) |
 > | `patch/smarty-fork-docs` | This section, the `AGENTS.md` note, and the `upstream-merge` skill. Fork-local; never intended for upstream. |
 >
@@ -19,9 +19,9 @@
 >
 > Upstream's `CONTRIBUTING.md` prefers **issues over PRs** for easily reproduced
 > bugs — the maintainer rewrites fixes so he owns their assumptions, and every
-> external PR upstream has been closed. PR #1 and #2 above are on **our fork**,
-> for review and stack hygiene, not upstream submissions. Report upstream-bound
-> patches as issues.
+> external PR upstream has been closed. All three upstream-bound patches are
+> reported as issues (#648, #649, #650). The PR links above are on **our fork**,
+> for review and stack hygiene, not upstream submissions.
 >
 > ### Working on this fork
 >

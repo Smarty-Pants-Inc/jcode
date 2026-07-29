@@ -27,8 +27,8 @@ review and stack hygiene — not submissions to upstream.
 
 | Patch | Upstream report |
 | --- | --- |
-| `patch/openrouter-catalog-deadlock` | not yet reported |
-| `patch/picker-provider-routes` | not yet reported |
+| `patch/openrouter-catalog-deadlock` | [issue #649](https://github.com/1jehuang/jcode/issues/649) |
+| `patch/picker-provider-routes` | [issue #650](https://github.com/1jehuang/jcode/issues/650) |
 | `patch/server-reload-subscribe` | [issue #648](https://github.com/1jehuang/jcode/issues/648) |
 
 ## Rules
