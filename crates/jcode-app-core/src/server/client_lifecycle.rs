@@ -808,20 +808,24 @@ pub(super) async fn handle_client(
                         }
                         let encoded_len = crate::protocol::encode_event(&event).len();
                         if encoded_len > MAX_LIVE_AVAILABLE_MODELS_UPDATE_BYTES {
-                            // Don't drop the catalog update entirely: clients still
-                            // need fresh model names for the picker. Strip the heavy
-                            // route expansion and ship a names-only snapshot; the TUI
-                            // rebuilds fallback routes for missing models locally.
-                            let slim_event = names_only_available_models_event(&event);
-                            let slim_encoded =
-                                slim_event.as_ref().map(crate::protocol::encode_event);
-                            match (slim_event, slim_encoded) {
-                                (Some(slim_event), Some(slim_encoded))
-                                    if slim_encoded.len()
-                                        <= MAX_LIVE_AVAILABLE_MODELS_UPDATE_BYTES =>
-                                {
+                            // Preserve exact provider identity when the user has
+                            // explicitly limited the picker. A names-only snapshot
+                            // makes colliding ids such as `gpt-5.6-sol` fall back to
+                            // a built-in provider instead of the configured profile.
+                            let picker_allowlist = crate::config::config()
+                                .provider
+                                .model_picker_providers
+                                .clone();
+                            let compact_event = compact_available_models_event(
+                                &event,
+                                picker_allowlist.as_deref(),
+                                MAX_LIVE_AVAILABLE_MODELS_UPDATE_BYTES,
+                            );
+                            match compact_event {
+                                Some((slim_event, slim_encoded))
+                                    if slim_encoded.len() <= MAX_LIVE_AVAILABLE_MODELS_UPDATE_BYTES => {
                                     crate::logging::info(&format!(
-                                        "Downgrading oversized bus AvailableModelsUpdated frame to names-only for connection {} ({} -> {} bytes)",
+                                        "Downgrading oversized bus AvailableModelsUpdated frame to compact snapshot for connection {} ({} -> {} bytes)",
                                         client_connection_id,
                                         encoded_len,
                                         slim_encoded.len()
@@ -3074,6 +3078,98 @@ fn names_only_available_models_event(event: &ServerEvent) -> Option<ServerEvent>
         provider_model: provider_model.clone(),
         available_models: available_models.clone(),
         available_model_routes: Vec::new(),
+    })
+}
+
+/// Choose the compacted `AvailableModelsUpdated` payload to send when the full
+/// frame exceeds `max_bytes`.
+///
+/// Prefers a provider-scoped snapshot so picker selections stay exactly
+/// routable, and only falls back to names-only (which drops provider identity)
+/// when no allowlist is configured or the scoped payload is still too large.
+fn compact_available_models_event(
+    event: &ServerEvent,
+    allowlist: Option<&[String]>,
+    max_bytes: usize,
+) -> Option<(ServerEvent, String)> {
+    picker_scoped_available_models_event(event, allowlist)
+        .map(|event| {
+            let encoded = crate::protocol::encode_event(&event);
+            (event, encoded)
+        })
+        .filter(|(_, encoded)| encoded.len() <= max_bytes)
+        .or_else(|| {
+            names_only_available_models_event(event).map(|event| {
+                let encoded = crate::protocol::encode_event(&event);
+                (event, encoded)
+            })
+        })
+}
+
+/// Keep only routes selected by `provider.model_picker_providers` so an
+/// oversized live catalog update remains both small and exactly routable.
+fn picker_scoped_available_models_event(
+    event: &ServerEvent,
+    allowlist: Option<&[String]>,
+) -> Option<ServerEvent> {
+    let ServerEvent::AvailableModelsUpdated {
+        provider_name,
+        provider_model,
+        available_models,
+        available_model_routes,
+    } = event
+    else {
+        return None;
+    };
+    let allowlist = allowlist?
+        .iter()
+        .map(|entry| jcode_provider_core::normalize_model_route_provider_label(entry))
+        .filter(|entry| !entry.is_empty())
+        .collect::<Vec<_>>();
+    if allowlist.is_empty() {
+        return None;
+    }
+
+    let route_matches = |route: &jcode_provider_core::ModelRoute| {
+        let provider = jcode_provider_core::normalize_model_route_provider_label(&route.provider);
+        let api_method =
+            jcode_provider_core::normalize_model_route_provider_label(&route.api_method);
+        let profile_id = route
+            .api_method
+            .split_once(':')
+            .map(|(_, profile)| jcode_provider_core::normalize_model_route_provider_label(profile))
+            .unwrap_or_default();
+        allowlist.iter().any(|entry| {
+            *entry == provider
+                || *entry == api_method
+                || (!profile_id.is_empty() && *entry == profile_id)
+                || jcode_provider_core::model_route_provider_labels_match(&route.provider, entry)
+        })
+    };
+
+    let available_model_routes = available_model_routes
+        .iter()
+        .filter(|route| route_matches(route))
+        .cloned()
+        .collect::<Vec<_>>();
+    if available_model_routes.is_empty() {
+        return None;
+    }
+    let scoped_models = available_model_routes
+        .iter()
+        .map(|route| route.model.as_str())
+        .collect::<HashSet<_>>();
+    let available_models = available_models
+        .iter()
+        .filter(|model| scoped_models.contains(model.as_str()))
+        .cloned()
+        .collect();
+
+    Some(ServerEvent::AvailableModelsUpdated {
+        provider_name: provider_name.clone(),
+        provider_model: provider_model.clone(),
+        available_models,
+        available_model_routes,
     })
 }
 

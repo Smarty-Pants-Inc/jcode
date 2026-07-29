@@ -6,6 +6,168 @@ use futures::stream;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
+#[test]
+fn oversized_picker_update_preserves_allowlisted_provider_routes() {
+    let event = ServerEvent::AvailableModelsUpdated {
+        provider_name: Some("OpenAI".to_string()),
+        provider_model: Some("gpt-5.6-sol".to_string()),
+        available_models: vec!["gpt-5.6-sol".to_string(), "other-model".to_string()],
+        available_model_routes: vec![
+            jcode_provider_core::ModelRoute {
+                model: "gpt-5.6-sol".to_string(),
+                provider: "OpenAI".to_string(),
+                api_method: "openai-oauth".to_string(),
+                available: true,
+                detail: String::new(),
+                cheapness: None,
+            },
+            jcode_provider_core::ModelRoute {
+                model: "gpt-5.6-sol".to_string(),
+                provider: "cliproxyapi".to_string(),
+                api_method: "openai-compatible:cliproxyapi".to_string(),
+                available: true,
+                detail: String::new(),
+                cheapness: None,
+            },
+            jcode_provider_core::ModelRoute {
+                model: "other-model".to_string(),
+                provider: "OpenRouter".to_string(),
+                api_method: "openrouter".to_string(),
+                available: true,
+                detail: String::new(),
+                cheapness: None,
+            },
+        ],
+    };
+
+    let scoped = picker_scoped_available_models_event(&event, Some(&["cliproxyapi".to_string()]))
+        .expect("allowlisted route should survive compaction");
+    let ServerEvent::AvailableModelsUpdated {
+        available_models,
+        available_model_routes,
+        ..
+    } = scoped
+    else {
+        panic!("expected model update");
+    };
+
+    assert_eq!(available_models, vec!["gpt-5.6-sol"]);
+    assert_eq!(available_model_routes.len(), 1);
+    assert_eq!(available_model_routes[0].provider, "cliproxyapi");
+    assert_eq!(
+        jcode_provider_core::RouteSelection::from_model_route(&available_model_routes[0])
+            .routed_model_spec(),
+        "cliproxyapi:gpt-5.6-sol"
+    );
+}
+
+#[test]
+fn oversized_update_call_site_prefers_scoped_routes_over_names_only() {
+    // Guards the call-site selection, not just the helper: the original bug was
+    // that an oversized frame always collapsed to names-only, which dropped
+    // provider identity and made `gpt-5.6-sol` resolve to a built-in provider
+    // instead of the configured `cliproxyapi` profile.
+    let event = oversized_models_event();
+    let allowlist = vec!["cliproxyapi".to_string()];
+
+    let (compacted, encoded) = compact_available_models_event(&event, Some(&allowlist), 64 * 1024)
+        .expect("an oversized frame must still produce a payload");
+    assert!(
+        encoded.len() <= 64 * 1024,
+        "compacted payload must fit the cap"
+    );
+
+    let ServerEvent::AvailableModelsUpdated {
+        available_model_routes,
+        ..
+    } = compacted
+    else {
+        panic!("expected a model update");
+    };
+
+    assert!(
+        !available_model_routes.is_empty(),
+        "routes were dropped, so the picker cannot resolve a provider"
+    );
+    assert!(
+        available_model_routes
+            .iter()
+            .all(|route| route.provider == "cliproxyapi"),
+        "only allowlisted provider routes should survive"
+    );
+    assert!(
+        available_model_routes
+            .iter()
+            .any(|route| route.model == "gpt-5.6-sol"),
+        "the colliding model id must remain routable through its profile"
+    );
+}
+
+#[test]
+fn oversized_update_without_allowlist_falls_back_to_names_only() {
+    let event = oversized_models_event();
+    let (compacted, _) = compact_available_models_event(&event, None, 64 * 1024)
+        .expect("fallback must still produce a payload");
+    let ServerEvent::AvailableModelsUpdated {
+        available_model_routes,
+        available_models,
+        ..
+    } = compacted
+    else {
+        panic!("expected a model update");
+    };
+    assert!(available_model_routes.is_empty());
+    assert!(!available_models.is_empty());
+}
+
+/// Build a model update large enough to exceed the live-frame cap, mixing a
+/// colliding model id across a built-in provider and the configured profile.
+fn oversized_models_event() -> ServerEvent {
+    let mut routes = Vec::new();
+    let mut models = Vec::new();
+    for i in 0..900 {
+        let model = format!("filler-model-{i:04}");
+        routes.push(jcode_provider_core::ModelRoute {
+            model: model.clone(),
+            provider: "OpenRouter".to_string(),
+            api_method: "openrouter".to_string(),
+            available: true,
+            detail: "a sufficiently long detail string to inflate the frame".to_string(),
+            cheapness: None,
+        });
+        models.push(model);
+    }
+    routes.push(jcode_provider_core::ModelRoute {
+        model: "gpt-5.6-sol".to_string(),
+        provider: "OpenAI".to_string(),
+        api_method: "openai-oauth".to_string(),
+        available: true,
+        detail: String::new(),
+        cheapness: None,
+    });
+    routes.push(jcode_provider_core::ModelRoute {
+        model: "gpt-5.6-sol".to_string(),
+        provider: "cliproxyapi".to_string(),
+        api_method: "openai-compatible:cliproxyapi".to_string(),
+        available: true,
+        detail: String::new(),
+        cheapness: None,
+    });
+    models.push("gpt-5.6-sol".to_string());
+
+    let event = ServerEvent::AvailableModelsUpdated {
+        provider_name: Some("OpenAI".to_string()),
+        provider_model: Some("gpt-5.6-sol".to_string()),
+        available_models: models,
+        available_model_routes: routes,
+    };
+    assert!(
+        crate::protocol::encode_event(&event).len() > 64 * 1024,
+        "fixture must exceed the live-frame cap to exercise compaction"
+    );
+    event
+}
+
 struct IsolatedRuntimeDir {
     _prev_runtime: Option<std::ffi::OsString>,
     _temp: tempfile::TempDir,
