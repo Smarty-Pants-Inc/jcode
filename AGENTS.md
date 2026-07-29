@@ -19,6 +19,18 @@ they conflict.
 
 The first three are upstream-bound. The tip is what we build and run.
 
+Upstream's `CONTRIBUTING.md` asks for **issues, not PRs**, when a bug reproduces
+easily: the maintainer rewrites fixes himself so he owns the assumptions. All 17
+external PRs upstream are closed; every merged PR is his. So "upstream-bound"
+here means *reported upstream as an issue*, and PR #1/#2 are on **our fork**, for
+review and stack hygiene — not submissions to upstream.
+
+| Patch | Upstream report |
+| --- | --- |
+| `patch/openrouter-catalog-deadlock` | not yet reported |
+| `patch/picker-provider-routes` | not yet reported |
+| `patch/server-reload-subscribe` | [issue #648](https://github.com/1jehuang/jcode/issues/648) |
+
 ## Rules
 
 - **Never commit to `master`.** It has to fast-forward from upstream. A commit

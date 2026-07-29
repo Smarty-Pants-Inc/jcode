@@ -80,6 +80,17 @@ branch tip *before* starting.
    single source of truth for stack order; `stack`, `refresh`, `publish`, and the
    pinned tip all derive from it. A branch missing here is silently not published.
 
+6. **Report it upstream as an issue, not a PR**, if the fix is upstream-bound.
+   Upstream's `CONTRIBUTING.md` asks for issues whenever a bug reproduces easily,
+   because the maintainer rewrites fixes to own their assumptions. Every external
+   PR upstream has been closed; every merged PR is his, and his commits cite
+   issue numbers. A PR is only worth it when the bug needs our specific
+   environment to reproduce.
+
+   Reproduce against stock upstream first — `jcode-default` runs it — so the
+   report does not depend on our patches. Include the error, the repro, the
+   cause with file references, and any testing pitfalls.
+
 ## Building and testing
 
 `scripts/dev_cargo.sh` wraps cargo with the repo's toolchain, linker, and memory
