@@ -142,10 +142,12 @@ impl Provider for OpenRouterProvider {
                     request["reasoning_effort"] = serde_json::json!(effort);
                     sent_reasoning_config = true;
                 }
-            } else if self.supports_openai_reasoning_effort() {
-                // GPT-family models on direct compat gateways (e.g. OpenCode
-                // Zen serving gpt-5.3-codex-spark) take the standard OpenAI
-                // `reasoning_effort` field with OpenAI's effort vocabulary.
+            } else if self.supports_openai_reasoning_effort()
+                || self.supports_anthropic_reasoning_effort()
+            {
+                // Direct compatibility gateways use the top-level
+                // `reasoning_effort` field. The accepted vocabulary is selected
+                // from the active GPT or Claude model family.
                 let effort = if jcode_base::prompt::is_swarm_effort(effort) {
                     "max"
                 } else {
@@ -479,6 +481,8 @@ impl Provider for OpenRouterProvider {
             jcode_provider_core::DEEPSEEK_SELECTABLE_EFFORTS.to_vec()
         } else if self.supports_openai_reasoning_effort() {
             jcode_provider_core::OPENAI_SELECTABLE_EFFORTS.to_vec()
+        } else if self.supports_anthropic_reasoning_effort() {
+            jcode_provider_core::anthropic_selectable_efforts(&self.model_snapshot())
         } else if Self::profile_supports_unified_reasoning(
             self.profile_id.as_deref(),
             self.send_openrouter_headers,

@@ -58,6 +58,24 @@ pub fn canonical_reasoning_effort(value: &str) -> Option<&'static str> {
     }
 }
 
+/// Claude effort levels supported by the model capability table, followed by
+/// Jcode's swarm modes.
+pub fn anthropic_selectable_efforts(model: &str) -> Vec<&'static str> {
+    let caps = crate::anthropic_reasoning_caps(model);
+    if !caps.supports_reasoning_effort() {
+        return Vec::new();
+    }
+    let mut efforts = vec!["none", "low", "medium", "high"];
+    if caps.xhigh_effort {
+        efforts.push("xhigh");
+    }
+    if caps.max_effort {
+        efforts.push("max");
+    }
+    efforts.extend(["swarm", "swarm-deep"]);
+    efforts
+}
+
 /// Infer the selectable effort ladder when only provider/model identity is
 /// available, such as in a remote TUI session.
 pub fn inferred_reasoning_efforts(
@@ -92,19 +110,7 @@ pub fn inferred_reasoning_efforts(
         || provider.contains("claude")
         || model.starts_with("claude-");
     if is_anthropic {
-        let caps = crate::anthropic_reasoning_caps(&model);
-        if !caps.supports_reasoning_effort() {
-            return Vec::new();
-        }
-        let mut efforts = vec!["none", "low", "medium", "high"];
-        if caps.xhigh_effort {
-            efforts.push("xhigh");
-        }
-        if caps.max_effort {
-            efforts.push("max");
-        }
-        efforts.extend(["swarm", "swarm-deep"]);
-        return efforts;
+        return anthropic_selectable_efforts(&model);
     }
 
     let is_openai = provider.contains("openai") || provider.contains("codex") || is_openai_model;
@@ -153,6 +159,19 @@ mod tests {
         );
         assert_eq!(
             inferred_reasoning_efforts(Some("anthropic"), Some("claude-opus-4-7")),
+            vec![
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max",
+                "swarm",
+                "swarm-deep"
+            ]
+        );
+        assert_eq!(
+            anthropic_selectable_efforts("claude-fable-5"),
             vec![
                 "none",
                 "low",

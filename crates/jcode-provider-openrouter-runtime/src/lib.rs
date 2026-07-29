@@ -1037,16 +1037,24 @@ impl OpenRouterProvider {
     /// deepseek profile, then the active model family for direct compat
     /// endpoints (never for real OpenRouter, which uses unified reasoning).
     pub(crate) fn supports_deepseek_reasoning_effort(&self) -> bool {
-        if let Some(explicit) = self.reasoning_effort_support {
-            return explicit;
+        if self.reasoning_effort_support == Some(false) {
+            return false;
         }
         if Self::profile_supports_reasoning_effort(self.profile_id.as_deref()) {
             return true;
         }
-        !Self::profile_supports_unified_reasoning(
+        if Self::profile_supports_unified_reasoning(
             self.profile_id.as_deref(),
             self.send_openrouter_headers,
-        ) && Self::model_is_deepseek_family(&self.model_snapshot())
+        ) {
+            return false;
+        }
+        let model = self.model_snapshot();
+        Self::model_is_deepseek_family(&model)
+            || (self.reasoning_effort_support == Some(true)
+                && !Self::model_is_openai_reasoning_family(&model)
+                && !jcode_provider_core::anthropic_reasoning_caps(&model)
+                    .supports_reasoning_effort())
     }
 
     /// GPT-family reasoning models (gpt-5.x, codex variants, o-series) accept
@@ -1077,6 +1085,20 @@ impl OpenRouterProvider {
         ) && Self::model_is_openai_reasoning_family(&self.model_snapshot())
     }
 
+    /// Named compatibility gateways can opt Claude models into the same
+    /// top-level `reasoning_effort` field. The selectable values come from the
+    /// Claude capability table rather than the DeepSeek ladder.
+    pub(crate) fn supports_anthropic_reasoning_effort(&self) -> bool {
+        if self.reasoning_effort_support != Some(true) {
+            return false;
+        }
+        !Self::profile_supports_unified_reasoning(
+            self.profile_id.as_deref(),
+            self.send_openrouter_headers,
+        ) && jcode_provider_core::anthropic_reasoning_caps(&self.model_snapshot())
+            .supports_reasoning_effort()
+    }
+
     fn model_snapshot(&self) -> String {
         self.model
             .try_read()
@@ -1087,6 +1109,7 @@ impl OpenRouterProvider {
     pub(crate) fn supports_any_reasoning_effort(&self) -> bool {
         self.supports_deepseek_reasoning_effort()
             || self.supports_openai_reasoning_effort()
+            || self.supports_anthropic_reasoning_effort()
             || Self::profile_supports_unified_reasoning(
                 self.profile_id.as_deref(),
                 self.send_openrouter_headers,
@@ -1098,6 +1121,11 @@ impl OpenRouterProvider {
             Self::normalize_reasoning_effort(effort)
         } else if self.supports_openai_reasoning_effort() {
             Self::normalize_openai_reasoning_effort(effort)
+        } else if self.supports_anthropic_reasoning_effort() {
+            let effort = effort.trim().to_ascii_lowercase();
+            jcode_provider_core::anthropic_selectable_efforts(&self.model_snapshot())
+                .contains(&effort.as_str())
+                .then_some(effort)
         } else {
             Self::normalize_unified_reasoning_effort(effort)
         }

@@ -2851,6 +2851,33 @@ fn named_profile_supports_reasoning_effort_config_override() {
     );
 }
 
+#[test]
+fn named_compat_profile_uses_claude_capability_ladder() {
+    let provider = OpenRouterProvider {
+        reasoning_effort_support: Some(true),
+        ..make_custom_compatible_provider()
+    };
+    provider.set_model("claude-fable-5").unwrap();
+
+    assert_eq!(
+        provider.available_efforts(),
+        vec![
+            "none",
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max",
+            "swarm",
+            "swarm-deep"
+        ]
+    );
+    provider
+        .set_reasoning_effort("xhigh")
+        .expect("Fable 5 on an opted-in compatibility gateway accepts xhigh");
+    assert_eq!(provider.reasoning_effort(), Some("xhigh".to_string()));
+}
+
 /// Issue #352: named profiles construct with the user's configured
 /// `openai_reasoning_effort` when the profile supports effort, instead of
 /// silently ignoring the config.
