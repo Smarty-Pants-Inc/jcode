@@ -82,8 +82,9 @@ branch tip *before* starting.
 
 ## Building and testing
 
-`scripts/dev_cargo.sh` is **invoked, not sourced**. Sourcing it fails with
-``no such command: `` ``.
+`scripts/dev_cargo.sh` wraps cargo with the repo's toolchain, linker, and memory
+policy. Pass the cargo command as arguments; sourcing it bare runs an empty
+command and fails with ``no such command: `` ``.
 
 ```sh
 export JCODE_DEV_TOOLCHAIN="nightly-2026-04-29"   # already in ~/.exports
